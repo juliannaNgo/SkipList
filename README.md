@@ -1,6 +1,6 @@
 # SkipList
 
-A node based implementation of the java List interface, where items are stored in the local file system through text files.
+A node based implementation of the Java List interface, where retreiving items are done through a ladder-like data structure composed of nodes.
 
 The following methods are implemented:
 
