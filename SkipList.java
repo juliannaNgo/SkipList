@@ -120,16 +120,20 @@ public class SkipList<E> implements List<E>{
 		
 		final int nodeHeight = this.coinFlipper();
 		
-		//add layers to top if we need to make space
+		//add layers to top of head/tail towers if we need to make space
 		while(nodeHeight > height) {
 			this.addTopLayer();
 		}
-		//building newNode's tower form bot to top
-		int towerCounter = 1;
+		
+		//building newNode's tower from bottom to top
+		
+		int towerCounter = 1; //current tower height
 		Node tailPointer = last.right;
 		
+		//building new tower against the tail tower
 		while(tailPointer.up != null) {
 			tailPointer = tailPointer.up;
+			//adding new copy nodes to the tower while needed
 			if (towerCounter < nodeHeight) { 
 				Node copyNode = new Node(e);
 				copyNode.right = tailPointer;
@@ -140,6 +144,7 @@ public class SkipList<E> implements List<E>{
 				copyNode.down.up = copyNode;
 				copyNode.distance = 1;
 			}
+			//if tower is complete, finish updating the rest of the left tower's distances
 			else {
 				tailPointer.left.distance++;
 			}
@@ -165,44 +170,18 @@ public class SkipList<E> implements List<E>{
 		else if (element == null) {
 			throw new NullPointerException();
 		}
-		//if index == size, just call regular addEnd method
+		
+		//if index == size, just call regular add(E element) method to append to the end of the SkipList
 		if (index == size) {
 			this.add(element);
 		}
-		else {
-			final int towerHeight = this.coinFlipper();
-			
-			//adding layers to SkipList if new Node's height is greater than current height
-			while(towerHeight > height) {
-				addTopLayer();
-			}
-			
-			Node <E> pointer = head;
-			int des = index + 1;
-			boolean found = false;
-			int disSum = 0;
 		
+		//otherwise, insert at the specified index without using the tail tower
+		else {
 			//searching for tower on right side of insertion point
-			while(!found) {
-				if (disSum +pointer.distance == des) {
-					pointer = pointer.right;
-					found = true;
-				}
-				else if (disSum+pointer.distance < des) {
-					if (pointer.right != null) {
-						disSum += pointer.distance;
-						pointer = pointer.right;
-					}
-				}
-				else {
-					if (pointer.down != null) {
-						pointer = pointer.down;
-					}
-				}
-			}
+			Node<E> pointer = getNode(index);
 		
 			//moving to the bottom of tower next to insertion point
-			
 			while(pointer.down!= null) {
 				pointer = pointer.down;
 			}
@@ -214,61 +193,129 @@ public class SkipList<E> implements List<E>{
 			pointer.left = newNode;
 			newNode.left.right = newNode;
 			newNode.distance = 1;
-			if (index == 0) {
-				first = newNode;
+			
+			//if the index = 0, reassign the first pointer
+			if (index == 0) first = newNode;
+			
+			//call coinFlipper to determine this node tower's height
+			int towerHeight = this.coinFlipper();
+			
+			//adding layers to SkipList if new Node's height is greater than current height
+			while(towerHeight > height) {
+				addTopLayer();
 			}
 			
-			//building the newNode tower
-			int towerCounter = 1;
-			int permBlock = 0;
+			// current height of the tower
+			int nodeHeight = 1;
+			// current node's distance
 			int distanceCounter = 1;
-			boolean canInsert = false;
-			while(towerCounter < height) {
+			
+			//boolean to determine if pointer is in a location that will allow new copy node insertion
+			boolean canInsert = true;
+			
+			// adjusting distances up to the top of the skipList
+			while(nodeHeight < height) {
+				
+				canInsert = true;
+				// move pointer to the top of the right node tower
 				if (pointer.up != null) {
 					pointer = pointer.up;
 				}
 				else {
-					while(!canInsert && (permBlock == 0)) {
+					
+					//once reached top of the current right node tower
+						//move pointer to the top of the next right node tower
+					while(canInsert) {
+						//move pointer to the new right tower
 						if (pointer.right != null) {
 							distanceCounter += pointer.distance;
 							pointer = pointer.right;
 						}
+						//if not at top of new right tower, move pointer up the new right tower and insert copy node
 						if (pointer.up != null) {
-							pointer = pointer.up;
-							canInsert = true;
+							pointer = pointer.up; 
+							canInsert = false;
 						}
+						//insert copy node if tail has been reached
 						if ((pointer== tail)) {
-							permBlock = 1;
+							canInsert = false;
 						}
 					}
 				}
-				canInsert = false;
-				if (towerCounter < towerHeight) {
+
+				//if nodeHeight has not reached towerHeight, insert the copy node to the top of the tower
+				if (nodeHeight < towerHeight) {
 					Node<E> copyNode = new Node<E>(element);
-					copyNode.down = newNode;
-					newNode.up = copyNode;
+					copyNode.down = pointer;
+					pointer.up = copyNode;
 					copyNode.left = pointer.left;
 					copyNode.left.right = copyNode;
 					copyNode.right = pointer;
 					pointer.left = copyNode;
 					copyNode.distance = distanceCounter;
-					if (index == 0) {
-						copyNode.left.distance = 1;
-					}
-					else {
-						copyNode.left.distance = (copyNode.left.distance+1) - copyNode.distance;
-					}
+					copyNode.left.distance = (copyNode.left.distance+1) - copyNode.distance;
 					newNode = copyNode;
-					towerCounter++;
+					nodeHeight++;
 				}
+				//tower is complete and we only need to update the distances of the left tower
 				else {
 					pointer.left.distance++;
-					towerCounter++;
+					nodeHeight++;
 				}
 			}
 			size++;
 		}
 	}
+	
+	/**
+	 * Helper method to return the node at the given index
+	 * 
+	 * @param i index of element to be returned
+	 * @throws IndexOutOfBoundsException if index < 0 or index >= size
+	 * @return Node at index i
+	 */
+	private Node getNode(int i) {
+		if ((i < 0) ||(i >= size)) {
+			throw new IndexOutOfBoundsException();
+		}
+		else if (i == 0) {
+			return first;
+		}
+		else if (i == size) {
+			return last;
+		}
+		else {
+			//start at the top left of the SkipList
+			Node <E> pointer = head;
+			
+			//destination's distance
+			int destination = i + 1;
+			
+			//distance traveled so far
+			int distanceSum = 0;
+
+			while(true) {
+				// if going right achieves destination distance, return right node
+				if (distanceSum+pointer.distance == destination) {
+					return pointer.right;
+				}
+				// if going right still doesn't achieve destination distance, move pointer right
+				else if (distanceSum+pointer.distance < destination) {
+					if (pointer.right != null) {
+						distanceSum += pointer.distance;
+						pointer = pointer.right;
+					}
+				}
+				// if going right over-steps the destination distance, move pointer down
+				else {
+					if (pointer.down != null) {
+						pointer = pointer.down;
+					}
+				}
+			}
+		}
+	}
+	
 	
 	/**
 	 * Returns the element at the specified index
@@ -277,41 +324,7 @@ public class SkipList<E> implements List<E>{
 	 * @throws IndexOutOfBoundsException if index < 0 or index >= size
 	 */
 	public E get(int index) {
-		if ((index < 0) ||(index >= size)) {
-			throw new IndexOutOfBoundsException();
-		}
-		else if (index == 0) {
-			return (E)first.element;
-		}
-		else if (index == size) {
-			return (E)last.element;
-		}
-		
-		E result = null;
-		Node <E> pointer = head;
-		int des = index + 1;
-		boolean found = false;
-		
-		int disSum = 0;
-
-		while(!found) {
-			if (disSum+pointer.distance == des) {
-				return (E)pointer.right.element;
-			}
-			else if (disSum+pointer.distance < des) {
-				if (pointer.right != null) {
-					disSum += pointer.distance;
-					pointer = pointer.right;
-				}
-			}
-			else {
-				if (pointer.down != null) {
-					pointer = pointer.down;
-				}
-			}
-		}
-		
-		return result;
+		return (E)getNode(index).element;
 	}
 	
 	
@@ -376,15 +389,17 @@ public class SkipList<E> implements List<E>{
 	/**
 	 * A helper method to decide how tall to make each node Tower
 	 * 
-	 * @return node towerHeight
+	 * @return towerHeight
 	 */
 	private int coinFlipper() {
 		int result = 1;
 		boolean tails = false;
 		while((!tails) && (result < MAXLEVEL)) {
+			// if the coin flip lands on 1 (heads), add an additional level to the tower
 			if (r.nextInt(2) == 1) {
 				result++;
 			}
+			//otherwise, the coin lands on tails, and the current tower height is returned.
 			else {
 				tails = true;
 			}
